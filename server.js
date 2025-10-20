@@ -23,16 +23,26 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_ANON_KEY
 );
 
-// Khởi tạo Email transporter
-const emailTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+// Khởi tạo Email transporter (với timeout ngắn để tránh chặn)
+let emailTransporter = null;
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  try {
+    emailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || 587,
+      secure: false,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  } catch (error) {
+    console.warn('⚠️ Email transporter không khởi tạo được:', error.message);
   }
-});
+}
 
 // =====================================================
 // UTILITY FUNCTIONS
@@ -228,6 +238,11 @@ async function sendConfirmationEmail(booking, passengers, route, settings) {
     </html>
   `;
 
+  if (!emailTransporter) {
+    console.warn('⚠️ Email transporter không khả dụng - Bỏ qua gửi email');
+    return { success: false, error: 'Email service not available' };
+  }
+
   try {
     await emailTransporter.sendMail({
       from: settingsMap.email_from || 'booking@ferryboat.vn',
@@ -237,7 +252,7 @@ async function sendConfirmationEmail(booking, passengers, route, settings) {
     });
     return { success: true };
   } catch (error) {
-    console.error('Email error:', error);
+    console.warn('⚠️ Không gửi được email:', error.message);
     return { success: false, error: error.message };
   }
 }
@@ -370,10 +385,12 @@ app.post('/api/bookings', async (req, res) => {
       .from('ferry_settings')
       .select('*');
 
-    // Gửi email xác nhận (không chặn response)
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    // Gửi email xác nhận (không chặn response, bỏ qua nếu lỗi)
+    if (emailTransporter) {
       sendConfirmationEmail(booking, savedPassengers, route, settings || [])
-        .catch(err => console.error('Email sending failed:', err));
+        .catch(err => console.warn('⚠️ Email không gửi được (bỏ qua):', err.message));
+    } else {
+      console.warn('⚠️ Email service không khả dụng - Tiếp tục không có email');
     }
 
     res.json({
