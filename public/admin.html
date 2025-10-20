@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Admin Dashboard - Ferry Booking HC1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-100">
+    <div id="admin-root"></div>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Admin App -->
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_URL = window.location.origin;
+
+        function formatCurrency(amount) {
+          return new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND'
+          }).format(amount);
+        }
+
+        function AdminDashboard() {
+          const [activeTab, setActiveTab] = useState('bookings');
+          const [bookings, setBookings] = useState([]);
+          const [routes, setRoutes] = useState([]);
+          const [loading, setLoading] = useState(true);
+          const [filter, setFilter] = useState({
+            status: '',
+            date: '',
+            route_id: ''
+          });
+
+          useEffect(() => {
+            loadData();
+          }, [filter]);
+
+          const loadData = async () => {
+            setLoading(true);
+            try {
+              const params = new URLSearchParams();
+              if (filter.status) params.append('status', filter.status);
+              if (filter.date) params.append('date', filter.date);
+              if (filter.route_id) params.append('route_id', filter.route_id);
+
+              const [bookingsRes, routesRes] = await Promise.all([
+                fetch(`${API_URL}/api/admin/bookings?${params}`).then(r => r.json()),
+                fetch(`${API_URL}/api/routes`).then(r => r.json())
+              ]);
+
+              if (bookingsRes.success) setBookings(bookingsRes.data);
+              if (routesRes.success) setRoutes(routesRes.data);
+            } catch (error) {
+              console.error('Error loading data:', error);
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          const updateBookingStatus = async (id, status) => {
+            try {
+              const response = await fetch(`${API_URL}/api/admin/bookings/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payment_status: status })
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                alert('✅ Cập nhật trạng thái thành công!');
+                loadData();
+              } else {
+                alert('❌ Lỗi: ' + result.error);
+              }
+            } catch (error) {
+              alert('❌ Không thể cập nhật: ' + error.message);
+            }
+          };
+
+          const stats = {
+            total: bookings.length,
+            pending: bookings.filter(b => b.payment_status === 'pending').length,
+            paid: bookings.filter(b => b.payment_status === 'paid').length,
+            cancelled: bookings.filter(b => b.payment_status === 'cancelled').length,
+            revenue: bookings
+              .filter(b => b.payment_status === 'paid')
+              .reduce((sum, b) => sum + parseFloat(b.total_amount), 0)
+          };
+
+          return (
+            <div className="min-h-screen">
+              {/* Header */}
+              <div className="bg-blue-600 text-white p-6 shadow-lg">
+                <div className="max-w-7xl mx-auto">
+                  <h1 className="text-3xl font-bold">🔧 Admin Dashboard</h1>
+                  <p className="text-blue-100 mt-1">Hệ Thống Quản Lý Đặt Vé Tàu Cao Tốc</p>
+                </div>
+              </div>
+
+              <div className="max-w-7xl mx-auto p-6">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                  <div className="bg-white p-4 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Tổng đơn</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Chờ thanh toán</p>
+                    <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Đã thanh toán</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.paid}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Đã hủy</p>
+                    <p className="text-2xl font-bold text-red-600">{stats.cancelled}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow">
+                    <p className="text-gray-600 text-sm">Doanh thu</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(stats.revenue)}</p>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="bg-white rounded-lg shadow mb-6">
+                  <div className="flex border-b">
+                    <button
+                      onClick={() => setActiveTab('bookings')}
+                      className={`px-6 py-3 font-semibold ${
+                        activeTab === 'bookings'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600'
+                      }`}
+                    >
+                      📋 Quản Lý Đơn Đặt Vé
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('routes')}
+                      className={`px-6 py-3 font-semibold ${
+                        activeTab === 'routes'
+                          ? 'text-blue-600 border-b-2 border-blue-600'
+                          : 'text-gray-600'
+                      }`}
+                    >
+                      🚢 Quản Lý Tuyến
+                    </button>
+                  </div>
+
+                  <div className="p-6">
+                    {activeTab === 'bookings' && (
+                      <BookingsManager
+                        bookings={bookings}
+                        routes={routes}
+                        filter={filter}
+                        setFilter={setFilter}
+                        updateBookingStatus={updateBookingStatus}
+                        loading={loading}
+                      />
+                    )}
+                    {activeTab === 'routes' && (
+                      <RoutesManager routes={routes} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        function BookingsManager({ bookings, routes, filter, setFilter, updateBookingStatus, loading }) {
+          const [selectedBooking, setSelectedBooking] = useState(null);
+          const [passengers, setPassengers] = useState([]);
+
+          const viewDetails = async (booking) => {
+            setSelectedBooking(booking);
+            try {
+              const response = await fetch(`${API_URL}/api/bookings/${booking.booking_code}`);
+              const result = await response.json();
+              if (result.success) {
+                setPassengers(result.data.passengers);
+              }
+            } catch (error) {
+              console.error('Error loading passengers:', error);
+            }
+          };
+
+          const getStatusColor = (status) => {
+            switch (status) {
+              case 'pending': return 'bg-yellow-100 text-yellow-800';
+              case 'paid': return 'bg-green-100 text-green-800';
+              case 'cancelled': return 'bg-red-100 text-red-800';
+              default: return 'bg-gray-100 text-gray-800';
+            }
+          };
+
+          const getStatusText = (status) => {
+            switch (status) {
+              case 'pending': return 'Chờ thanh toán';
+              case 'paid': return 'Đã thanh toán';
+              case 'cancelled': return 'Đã hủy';
+              default: return status;
+            }
+          };
+
+          return (
+            <div>
+              {/* Filters */}
+              <div className="flex flex-wrap gap-4 mb-6">
+                <select
+                  value={filter.status}
+                  onChange={(e) => setFilter({ ...filter, status: e.target.value })}
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="pending">Chờ thanh toán</option>
+                  <option value="paid">Đã thanh toán</option>
+                  <option value="cancelled">Đã hủy</option>
+                </select>
+
+                <input
+                  type="date"
+                  value={filter.date}
+                  onChange={(e) => setFilter({ ...filter, date: e.target.value })}
+                  className="border rounded px-3 py-2"
+                />
+
+                <select
+                  value={filter.route_id}
+                  onChange={(e) => setFilter({ ...filter, route_id: e.target.value })}
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="">Tất cả tuyến</option>
+                  {routes.map(r => (
+                    <option key={r.id} value={r.id}>{r.route_name}</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => setFilter({ status: '', date: '', route_id: '' })}
+                  className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  🔄 Reset
+                </button>
+              </div>
+
+              {/* Bookings Table */}
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="spinner"></div>
+                  <p className="text-gray-600 mt-4">Đang tải...</p>
+                </div>
+              ) : bookings.length === 0 ? (
+                <p className="text-center text-gray-600 py-8">Không có đơn đặt vé nào</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Mã đơn</th>
+                        <th className="px-4 py-3 text-left">Tuyến</th>
+                        <th className="px-4 py-3 text-left">Ngày đi</th>
+                        <th className="px-4 py-3 text-left">Người đặt</th>
+                        <th className="px-4 py-3 text-left">SL người</th>
+                        <th className="px-4 py-3 text-left">Tổng tiền</th>
+                        <th className="px-4 py-3 text-left">Trạng thái</th>
+                        <th className="px-4 py-3 text-left">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bookings.map(booking => (
+                        <tr key={booking.id} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-sm">{booking.booking_code}</td>
+                          <td className="px-4 py-3">{booking.ferry_routes?.route_name}</td>
+                          <td className="px-4 py-3">
+                            {new Date(booking.travel_date).toLocaleDateString('vi-VN')}
+                            <br />
+                            <span className="text-sm text-gray-600">{booking.departure_time}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {booking.booker_name}
+                            <br />
+                            <span className="text-sm text-gray-600">{booking.booker_phone}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">{booking.passenger_count}</td>
+                          <td className="px-4 py-3 font-semibold">{formatCurrency(booking.total_amount)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(booking.payment_status)}`}>
+                              {getStatusText(booking.payment_status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => viewDetails(booking)}
+                                className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                              >
+                                Chi tiết
+                              </button>
+                              {booking.payment_status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, 'paid')}
+                                    className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                                  >
+                                    Đã TT
+                                  </button>
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                                    className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                                  >
+                                    Hủy
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Modal Chi Tiết */}
+              {selectedBooking && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-bold">Chi Tiết Đơn Đặt Vé</h3>
+                      <button
+                        onClick={() => setSelectedBooking(null)}
+                        className="text-gray-500 hover:text-gray-700 text-2xl"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="border-b pb-3">
+                        <p className="text-sm text-gray-600">Mã đơn</p>
+                        <p className="font-mono font-bold">{selectedBooking.booking_code}</p>
+                      </div>
+
+                      <div className="border-b pb-3">
+                        <p className="text-sm text-gray-600">Thông tin chuyến</p>
+                        <p>{selectedBooking.ferry_routes?.route_name}</p>
+                        <p>{new Date(selectedBooking.travel_date).toLocaleDateString('vi-VN')} - {selectedBooking.departure_time}</p>
+                      </div>
+
+                      <div className="border-b pb-3">
+                        <p className="text-sm text-gray-600">Người đặt</p>
+                        <p>{selectedBooking.booker_name}</p>
+                        <p>{selectedBooking.booker_email}</p>
+                        <p>{selectedBooking.booker_phone}</p>
+                      </div>
+
+                      {selectedBooking.special_requests && (
+                        <div className="border-b pb-3">
+                          <p className="text-sm text-gray-600">Yêu cầu đặc biệt</p>
+                          <p>{selectedBooking.special_requests}</p>
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-sm text-gray-600 mb-2">Danh sách hành khách</p>
+                        {passengers.map((p, i) => (
+                          <div key={i} className="flex justify-between py-2 border-b">
+                            <span>{i + 1}. {p.passenger_name} - {new Date().getFullYear() - p.birth_year} tuổi ({p.nationality})</span>
+                            <span className="font-semibold">{formatCurrency(p.ticket_price)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="bg-green-50 p-4 rounded">
+                        <p className="text-sm text-gray-600">Tổng thanh toán</p>
+                        <p className="text-2xl font-bold text-green-600">{formatCurrency(selectedBooking.total_amount)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        function RoutesManager({ routes }) {
+          return (
+            <div>
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-lg font-bold">Danh Sách Tuyến ({routes.length})</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {routes.map(route => (
+                  <div key={route.id} className="border rounded-lg p-4 bg-gray-50">
+                    <h4 className="font-bold text-lg mb-2">{route.route_name}</h4>
+
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 mb-1">Giờ khởi hành:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {route.departure_times.map(time => (
+                          <span key={time} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                            {time}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Bảng giá:</p>
+                      <div className="text-sm space-y-1">
+                        <p>VIP: {formatCurrency(route.pricing.vip.price)}</p>
+                        <p>Người lớn: {formatCurrency(route.pricing.adult.weekdayPrice || route.pricing.adult.price)}</p>
+                        <p>Cao tuổi: {formatCurrency(route.pricing.senior.weekdayPrice || route.pricing.senior.price)}</p>
+                        <p>Trẻ em: {formatCurrency(route.pricing.child.weekdayPrice || route.pricing.child.price)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        route.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {route.status === 'active' ? '✅ Đang hoạt động' : '❌ Tạm dừng'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.render(<AdminDashboard />, document.getElementById('admin-root'));
+    </script>
+</body>
+</html>

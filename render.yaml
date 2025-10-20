@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ferry-booking-hc1
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
